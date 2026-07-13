@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Redis Connector with Logs",
+      "cargo": {
+        "args": ["build", "--bin=redis-connector"]
+      },
+      "args": [
+        "--mode", "both",
+        "--config", "config.toml"
+      ],
+      "cwd": "${workspaceFolder}",
+      "stdio": [null, "${workspaceFolder}/log", null],
+      "env": {
+        "PATH": "${env:PATH}:${userHome}/.cargo/bin"
+      }
+    }
+  ]
+}
