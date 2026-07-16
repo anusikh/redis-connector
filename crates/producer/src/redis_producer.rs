@@ -2,8 +2,8 @@
 //! Redis streams.
 
 use cdc_core::{ParsedTransaction, TxnEvent};
-use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
+use redis::aio::ConnectionManager;
 use serde_json::json;
 
 pub struct RedisStreamProducer {

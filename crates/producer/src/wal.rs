@@ -4,7 +4,7 @@
 //! values that the Redis producer can emit.
 
 use bytes::Buf;
-use cdc_core::{ColumnInfo, ColData, ParsedTransaction, RelationInfo, TxnEvent};
+use cdc_core::{ColData, ColumnInfo, ParsedTransaction, RelationInfo, TxnEvent};
 use std::collections::HashMap;
 
 pub struct PgoutputParser {

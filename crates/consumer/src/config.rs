@@ -31,9 +31,14 @@ pub struct ConsumerConfig {
 
 impl ConsumerConfig {
     pub fn from_env() -> Self {
-        let env = |name: &str, default: &str| std::env::var(name).unwrap_or_else(|_| default.to_string());
-        let user = std::env::var("OPENSEARCH_USER").ok().filter(|s| !s.is_empty());
-        let password = std::env::var("OPENSEARCH_PASSWORD").ok().filter(|s| !s.is_empty());
+        let env =
+            |name: &str, default: &str| std::env::var(name).unwrap_or_else(|_| default.to_string());
+        let user = std::env::var("OPENSEARCH_USER")
+            .ok()
+            .filter(|s| !s.is_empty());
+        let password = std::env::var("OPENSEARCH_PASSWORD")
+            .ok()
+            .filter(|s| !s.is_empty());
         Self {
             redis_url: env("REDIS_URL", "redis://127.0.0.1:6379"),
             partitions: env("PARTITIONS", "16").parse().unwrap_or(16),

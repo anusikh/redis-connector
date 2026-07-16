@@ -28,7 +28,8 @@ pub struct ProducerConfig {
 impl ProducerConfig {
     /// Build configuration from environment variables, falling back to defaults.
     pub fn from_env() -> Self {
-        let env = |name: &str, default: &str| std::env::var(name).unwrap_or_else(|_| default.to_string());
+        let env =
+            |name: &str, default: &str| std::env::var(name).unwrap_or_else(|_| default.to_string());
         Self {
             pg_host: env("PGHOST", "127.0.0.1"),
             pg_port: env("PGPORT", "5432").parse().unwrap_or(5432),

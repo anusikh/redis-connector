@@ -4,7 +4,7 @@
 //! `version_type=external` and per-item status classification (needed for the
 //! idempotency / poison-pill resilience rules).
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub enum BulkOp {
     Index,
@@ -166,8 +166,7 @@ fn classify(status: u64, err_type: &str) -> ItemOutcome {
 }
 
 fn base64_encode(input: &[u8]) -> String {
-    const CHARS: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const CHARS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();
     for chunk in input.chunks(3) {
         let b = [

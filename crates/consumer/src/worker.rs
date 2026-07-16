@@ -9,13 +9,13 @@
 use crate::config::ConsumerConfig;
 use crate::opensearch::{BulkItem, BulkOp, ItemOutcome, OpenSearchClient};
 use cdc_core::TxnEvent;
+use redis::AsyncCommands;
 use redis::aio::ConnectionManager;
 use redis::streams::StreamReadOptions;
-use redis::AsyncCommands;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::time::Instant;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 use tokio_util::sync::CancellationToken;
 
 const IDLE_POLL: Duration = Duration::from_millis(200);
@@ -44,10 +44,7 @@ impl PartitionWorker {
         let opts = StreamReadOptions::default()
             .group(&self.cfg.group_name, &self.consumer)
             .count(self.cfg.batch_size);
-        let reply: redis::Value = self
-            .conn
-            .xread_options(&[stream], &[">"], &opts)
-            .await?;
+        let reply: redis::Value = self.conn.xread_options(&[stream], &[">"], &opts).await?;
         Ok(parse_xreadgroup(&reply))
     }
 
@@ -90,8 +87,14 @@ impl PartitionWorker {
                 Err(_) => {
                     // Malformed payload -> dead-letter immediately.
                     self.send_to_dlq(raw).await;
-                    let _: redis::RedisResult<()> =
-                        self.conn.xack(self.cfg.stream_key(self.partition), &self.cfg.group_name, &[id.as_str()]).await;
+                    let _: redis::RedisResult<()> = self
+                        .conn
+                        .xack(
+                            self.cfg.stream_key(self.partition),
+                            &self.cfg.group_name,
+                            &[id.as_str()],
+                        )
+                        .await;
                     self.attempts.remove(id);
                     continue;
                 }
@@ -101,9 +104,10 @@ impl PartitionWorker {
             let index = self.cfg.index_for(envelope.event.table());
             let doc_id = envelope.event.document_id();
             let (op, source) = match &envelope.event {
-                TxnEvent::Insert { data, .. } | TxnEvent::Update { data, .. } => {
-                    (BulkOp::Index, Some(serde_json::to_value(data).unwrap_or(serde_json::Value::Null)))
-                }
+                TxnEvent::Insert { data, .. } | TxnEvent::Update { data, .. } => (
+                    BulkOp::Index,
+                    Some(serde_json::to_value(data).unwrap_or(serde_json::Value::Null)),
+                ),
                 TxnEvent::Delete { .. } => (BulkOp::Delete, None),
             };
 
@@ -151,7 +155,11 @@ impl PartitionWorker {
     async fn ack(&mut self, id: &str) {
         let _: redis::RedisResult<()> = self
             .conn
-            .xack(self.cfg.stream_key(self.partition), &self.cfg.group_name, &[id])
+            .xack(
+                self.cfg.stream_key(self.partition),
+                &self.cfg.group_name,
+                &[id],
+            )
             .await;
     }
 
@@ -187,10 +195,7 @@ impl PartitionWorker {
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "partition {} fetch error: {e} (retrying)",
-                        self.partition
-                    );
+                    eprintln!("partition {} fetch error: {e} (retrying)", self.partition);
                     if !token.is_cancelled() {
                         sleep(BACKOFF).await;
                     }
@@ -291,7 +296,7 @@ fn clone_cfg(cfg: &ConsumerConfig) -> ConsumerConfig {
 #[cfg(unix)]
 fn spawn_shutdown_watcher(token: CancellationToken) {
     tokio::spawn(async move {
-        use tokio::signal::unix::{signal, SignalKind};
+        use tokio::signal::unix::{SignalKind, signal};
         let mut sigterm = signal(SignalKind::terminate()).expect("sigterm");
         let mut sigint = signal(SignalKind::interrupt()).expect("sigint");
         tokio::select! {
@@ -337,12 +342,11 @@ fn parse_entries_value(entries: &redis::Value) -> Vec<(String, String)> {
         for entry in entries {
             if let redis::Value::Array(kv) = entry {
                 if kv.len() == 2 {
-                    if let (redis::Value::BulkString(id), redis::Value::Array(fields)) = (&kv[0], &kv[1]) {
+                    if let (redis::Value::BulkString(id), redis::Value::Array(fields)) =
+                        (&kv[0], &kv[1])
+                    {
                         if let Some(payload) = field_value(fields, "payload") {
-                            out.push((
-                                String::from_utf8_lossy(id).to_string(),
-                                payload,
-                            ));
+                            out.push((String::from_utf8_lossy(id).to_string(), payload));
                         }
                     }
                 }
