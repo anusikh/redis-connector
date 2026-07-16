@@ -1,75 +1,49 @@
+# Local dev stack for the CDC connector.
+# Brings up Redis, PostgreSQL (logical replication), and OpenSearch.
 services:
-  # --- POSTGRES (SINGLE NODE) ---
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   postgres:
-    image: postgres:16-alpine
-    container_name: postgres-cdc
+    image: postgres:16
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: cdc_db
-      PGDATA: /var/lib/postgresql/data/pgdata
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
     ports:
       - "5432:5432"
-    # Essential flags to enable the WAL pgoutput logical replication stream
-    command: >
-      postgres 
-      -c wal_level=logical 
-      -c max_wal_senders=10 
-      -c max_replication_slots=10
-    volumes:
-      - pg-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cdc_db"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 5
 
-  # --- REDIS (FOR STREAMS) ---
-  redis:
-    image: redis:7-alpine
-    container_name: redis-cdc
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - redis-data:/data
-
-  # --- OPENSEARCH ---
   opensearch:
-    image: opensearchproject/opensearch:2.12.0
-    container_name: opensearch-cdc
+    image: opensearchproject/opensearch:2.11.1
     environment:
-      - cluster.name=opensearch-cluster
-      - node.name=opensearch-node1
-      - discovery.type=single-node
-      - bootstrap.memory_lock=true
-      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
-      - DISABLE_SECURITY_PLUGIN=true # Simplifies local dev (removes HTTPS/auth requirement)
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
+      discovery.type: single-node
+      # Disable security for local dev so the connector can use plain HTTP.
+      OPENSEARCH_SECURITY_DISABLED: "true"
+    command: ["opensearch", "-Eplugins.security.disabled=true"]
     ports:
       - "9200:9200"
-    volumes:
-      - opensearch-data:/usr/share/opensearch/data
-
-  # --- OPENSEARCH DASHBOARDS (GUI) ---
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.12.0
-    container_name: opensearch-dashboards
-    ports:
-      - "5601:5601"
-    environment:
-      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
-      - DISABLE_SECURITY_PLUGIN=true
-    depends_on:
-      - opensearch
-
-volumes:
-  pg-data:
-  redis-data:
-  opensearch-data:
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

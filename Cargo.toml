@@ -3,9 +3,16 @@ name = "redis-connector"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "redis-connector"
+path = "src/main.rs"
+
+[workspace]
+members = ["crates/core", "crates/producer", "crates/consumer"]
+
 [dependencies]
+clap = { version = "4", features = ["derive"] }
+cdc-core = { path = "crates/core" }
+cdc-producer = { path = "crates/producer" }
+cdc-consumer = { path = "crates/consumer" }
 tokio = { version = "1", features = ["full"] }
-pgwire-replication = "0.3"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-bytes = "1.12.1"
